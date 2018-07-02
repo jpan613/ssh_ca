@@ -10,7 +10,7 @@ Setup:
 
 * Client:
 
-   1. you need to modify ~/.ssh/config to allow the agent to be forwarded to all the hosts in this setup:
+   * you need to modify ~/.ssh/config to allow the agent to be forwarded to all the hosts in this setup:
 ```
 Host <prod_host_name_wildcard>
         ForwardAgent yes
@@ -18,14 +18,14 @@ Host <prod_host_name_wildcard>
 
 * CA:
 
-  1. Have the proper pam authentication for sshd set up on the CA host, the CA is the only server that we should use password +  some kind of TOTP for authentication.
-  2. Create a group (let's say it's called ssh_ca_group)  that is authorized to request the certificate and add users to them.
-  3. Generate the CA key pair by
+  * Have the proper pam authentication for sshd set up on the CA host, the CA is the only server that we should use password +  some kind of TOTP for authentication.
+  * Create a group (let's say it's called ssh_ca_group)  that is authorized to request the certificate and add users to them.
+  * Generate the CA key pair by
 ```
 ssh-keygen -t ed25519 -f /etc/ssh/ca
 ```
-  4. add the compiled binary of ssh_ca to /usr/bin/
-  5. add
+  * add the compiled binary of ssh_ca to /usr/bin/
+  * add
 ```
 Match Group ssh_ca_group
 	ForceCommand ssh_ca -cakeypath /etc/ssh/ca
@@ -35,7 +35,7 @@ This will run ssh_ca if the user authenticates successfully, and is in the ssh_c
 
 * Server:
 
-   1. For all the servers that the users should be able to ssh into using their certificate obtained from the CA, copy /etc/ssh/ca.pub off the CA, and then copy to /etc/ssh on these servers, and add
+   * For all the servers that the users should be able to ssh into using their certificate obtained from the CA, copy /etc/ssh/ca.pub off the CA, and then copy to /etc/ssh on these servers, and add
 ```
 TrustedUserCAKeys /etc/ssh/ca.pub
 ```
