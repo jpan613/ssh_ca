@@ -102,14 +102,11 @@ func main() {
 		}
 	} else {
 		passphrasedat, err := ioutil.ReadFile(*caKeyPasspharsePath)
-		passphrase := passphrasedat[:len(passphrasedat) - 1]
 		if err != nil {
 			fmt.Printf("failed to read ca key passphrase file: %s\n", err)
 			os.Exit(1)
-		} else {
-			fmt.Printf("%s", passphrase)
 		}
-		caKey, err = ssh.ParsePrivateKeyWithPassphrase(dat, passphrase)
+		caKey, err = ssh.ParsePrivateKeyWithPassphrase(dat, passphrasedat)
 		if err != nil {
 			fmt.Printf("failed to parse encrypted ca key: %s\n", err)
 			os.Exit(1)
