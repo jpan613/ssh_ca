@@ -36,6 +36,7 @@ func signUserCert(userPrincipal string, validHours int, pubKey ssh.PublicKey, ca
 		ValidBefore:     uint64(time.Now().Unix() + int64(validHours)*3600),
 		Key:             pubKey,
 		Serial:          mathrand.Uint64(),
+		KeyId:					 fmt.Sprintf("ssh cert for %s", userPrincipal),
 		CertType:        ssh.UserCert,
 		SignatureKey:    caPublicKey,
 		Permissions: ssh.Permissions{
@@ -47,20 +48,21 @@ func signUserCert(userPrincipal string, validHours int, pubKey ssh.PublicKey, ca
 	return cert, err
 }
 
-func addCertToAgent(key *ed25519.PrivateKey, cert *ssh.Certificate) error {
+func addCertToAgent(key *ed25519.PrivateKey, cert *ssh.Certificate, validHours int) error {
 	fmt.Printf("\n")
 	addkey := &agent.AddedKey{
 		PrivateKey:  key,
 		Certificate: cert,
+		LifetimeSecs: uint32(validHours * 3600),
 	}
 	if sshAgent, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK")); err == nil {
 		userSshAgent := agent.NewClient(sshAgent)
 		fmt.Printf("adding certificate to ssh-agent\n")
 		if err := (userSshAgent).Add(*addkey); err == nil {
-			fmt.Printf("added certificate to ssh-agent, please run ssh-add -L to verify\n")
+			fmt.Errorf("added certificate to ssh-agent, please run ssh-add -L to verify\n")
 			return nil
 		} else {
-			fmt.Printf("Failed to add certificate to ssh-agent: %s\n", err)
+			fmt.Errorf("Failed to add certificate to ssh-agent: %s\n", err)
 			return err
 		}
 	} else {
@@ -74,15 +76,15 @@ func main() {
 	// generate client ssh key pair
 	_, privKey, err := ed25519.GenerateKey(rand.Reader)
 	sshPubKey, err := ssh.NewPublicKey(privKey.Public())
-	fmt.Printf("Generated ed25519 key pairs with the public key of:\n%s", ssh.MarshalAuthorizedKey(sshPubKey))
+	fmt.Printf("Generated ed25519 key pairs with the public key of:\n[%s]", ssh.MarshalAuthorizedKey(sshPubKey))
 	if err != nil {
-		fmt.Printf("failed to create host key pair: %s\n", err)
+		fmt.Errorf("failed to create host key pair: %s\n", err)
 		os.Exit(1)
 	}
 	// get current username to be used as certificate principal
 	currentUser, err := user.Current()
 	if err != nil {
-		fmt.Printf("failed to get current user: %s\n", err)
+		fmt.Errorf("failed to get current user: %s\n", err)
 		os.Exit(1)
 	}
 	userPrincipal := currentUser.Username
@@ -90,25 +92,25 @@ func main() {
 	// read the CA private key file
 	dat, err := ioutil.ReadFile(*caKeyPath)
 	if err != nil {
-		fmt.Printf("failed to read ca key: %s\n", err)
+		fmt.Errorf("failed to read ca key: %s\n", err)
 		os.Exit(1)
 	}
 
 	if *caKeyPasspharsePath == "" {
 		caKey, err = ssh.ParsePrivateKey(dat)
 		if err != nil {
-			fmt.Printf("failed to parse ca key: %s\n", err)
+			fmt.Errorf("failed to parse ca key: %s\n", err)
 			os.Exit(1)
 		}
 	} else {
 		passphrasedat, err := ioutil.ReadFile(*caKeyPasspharsePath)
 		if err != nil {
-			fmt.Printf("failed to read ca key passphrase file: %s\n", err)
+			fmt.Errorf("failed to read ca key passphrase file: %s\n", err)
 			os.Exit(1)
 		}
 		caKey, err = ssh.ParsePrivateKeyWithPassphrase(dat, passphrasedat)
 		if err != nil {
-			fmt.Printf("failed to parse encrypted ca key: %s\n", err)
+			fmt.Errorf("failed to parse encrypted ca key: %s\n", err)
 			os.Exit(1)
 		}
 	}
@@ -118,12 +120,12 @@ func main() {
 	// create a signer from the CA private key
 	cert, err := signUserCert(userPrincipal, *validHours, sshPubKey, caPublicKey, caKey)
 	if err != nil {
-		fmt.Printf("failed to sign certificate: %s\n", err)
+		fmt.Errorf("failed to sign certificate: %s\n", err)
 		os.Exit(1)
 	}
-	fmt.Printf("Signed certificate successfully with [%s]", *caKeyPath)
-	if err := addCertToAgent(&privKey, cert); err != nil {
-		fmt.Printf("failed to add ssh certificate to ssh agent: %s\n", err)
+	fmt.Printf("Signed certificate successfully by CA with the fingerprint [%s]", ssh.FingerprintSHA256(caPublicKey))
+	if err := addCertToAgent(&privKey, cert, *validHours); err != nil {
+		fmt.Errorf("failed to add ssh certificate to ssh agent: %s\n", err)
 		os.Exit(1)
 	}
 }
